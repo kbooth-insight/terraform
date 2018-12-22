@@ -24,6 +24,7 @@ import (
 	backendManta "github.com/hashicorp/terraform/backend/remote-state/manta"
 	backendS3 "github.com/hashicorp/terraform/backend/remote-state/s3"
 	backendSwift "github.com/hashicorp/terraform/backend/remote-state/swift"
+	backendAzureVault "github.com/hashicorp/terraform/backend/remote-state/azure_vault"
 )
 
 // backends is the list of available backends. This is a global variable
@@ -63,7 +64,7 @@ func Init(services *disco.Disco) {
 		"manta":       func() backend.Backend { return backendManta.New() },
 		"s3":          func() backend.Backend { return backendS3.New() },
 		"swift":       func() backend.Backend { return backendSwift.New() },
-
+		"azurerm_vault":       func() backend.Backend { return backendAzureVault.New() },
 		// Deprecated backends.
 		"azure": func() backend.Backend {
 			return deprecateBackend(

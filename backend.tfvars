@@ -1,0 +1,5 @@
+resource_group_name = "rg-gp-management"
+storage_account_name = "kvxyzvtzeg2x34hntjust48"
+container_name = "gp-terraform-state-dev"
+access_key = "gE7x3cMPs8bsQ6Bl202VgNV2Xar3qO5oWF139M+z8XAxWqa0K3iahFh4XyTuf50zOSKqdj6qg8aQeUMmCL5OJQ=="
+key = "terraform.dev.tfstate"

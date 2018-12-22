@@ -1,41 +1,22 @@
-package azure
+package azure_vault
 
 import (
 	"context"
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/hashicorp/terraform/backend"
 	"github.com/hashicorp/terraform/helper/acctest"
+	"github.com/hashicorp/terraform/state/remote"
 )
 
-func TestBackend_impl(t *testing.T) {
-	var _ backend.Backend = new(Backend)
+func TestRemoteClient_impl(t *testing.T) {
+	var _ remote.Client = new(RemoteClient)
+	var _ remote.ClientLocker = new(RemoteClient)
 }
 
-func TestBackendConfig(t *testing.T) {
-	// This test just instantiates the client. Shouldn't make any actual
-	// requests nor incur any costs.
-
-	config := map[string]interface{}{
-		"storage_account_name": "tfaccount",
-		"container_name":       "tfcontainer",
-		"key":                  "state",
-		// Access Key must be Base64
-		"access_key": "QUNDRVNTX0tFWQ0K",
-	}
-
-	b := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(config)).(*Backend)
-
-	if b.containerName != "tfcontainer" {
-		t.Fatalf("Incorrect bucketName was populated")
-	}
-	if b.keyName != "state" {
-		t.Fatalf("Incorrect keyName was populated")
-	}
-}
-
-func TestBackendAccessKeyBasic(t *testing.T) {
+func TestRemoteClientAccessKeyBasic(t *testing.T) {
 	testAccAzureBackend(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
@@ -45,7 +26,6 @@ func TestBackendAccessKeyBasic(t *testing.T) {
 	err := armClient.buildTestResources(ctx, &res)
 	defer armClient.destroyTestResources(ctx, res)
 	if err != nil {
-		armClient.destroyTestResources(ctx, res)
 		t.Fatalf("Error creating Test Resources: %q", err)
 	}
 
@@ -58,10 +38,15 @@ func TestBackendAccessKeyBasic(t *testing.T) {
 		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
-	backend.TestBackendStates(t, b)
+	state, err := b.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remote.TestClient(t, state.(*remote.State).Client)
 }
 
-func TestBackendManagedServiceIdentityBasic(t *testing.T) {
+func TestRemoteClientManagedServiceIdentityBasic(t *testing.T) {
 	testAccAzureBackendRunningInAzure(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
@@ -86,10 +71,15 @@ func TestBackendManagedServiceIdentityBasic(t *testing.T) {
 		"endpoint":            os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
-	backend.TestBackendStates(t, b)
+	state, err := b.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remote.TestClient(t, state.(*remote.State).Client)
 }
 
-func TestBackendSASTokenBasic(t *testing.T) {
+func TestRemoteClientSasTokenBasic(t *testing.T) {
 	testAccAzureBackend(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
@@ -116,10 +106,15 @@ func TestBackendSASTokenBasic(t *testing.T) {
 		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
-	backend.TestBackendStates(t, b)
+	state, err := b.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remote.TestClient(t, state.(*remote.State).Client)
 }
 
-func TestBackendServicePrincipalBasic(t *testing.T) {
+func TestRemoteClientServicePrincipalBasic(t *testing.T) {
 	testAccAzureBackend(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
@@ -145,18 +140,16 @@ func TestBackendServicePrincipalBasic(t *testing.T) {
 		"endpoint":            os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
-	backend.TestBackendStates(t, b)
-}
-
-func TestBackendServicePrincipalCustomEndpoint(t *testing.T) {
-	testAccAzureBackend(t)
-
-	// this is only applicable for Azure Stack.
-	endpoint := os.Getenv("ARM_ENDPOINT")
-	if endpoint == "" {
-		t.Skip("Skipping as ARM_ENDPOINT isn't configured")
+	state, err := b.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
 	}
 
+	remote.TestClient(t, state.(*remote.State).Client)
+}
+
+func TestRemoteClientAccessKeyLocks(t *testing.T) {
+	testAccAzureBackend(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
 	armClient := buildTestClient(t, res)
@@ -168,7 +161,51 @@ func TestBackendServicePrincipalCustomEndpoint(t *testing.T) {
 		t.Fatalf("Error creating Test Resources: %q", err)
 	}
 
-	b := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
+	b1 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
+		"storage_account_name": res.storageAccountName,
+		"container_name":       res.storageContainerName,
+		"key":                  res.storageKeyName,
+		"access_key":           res.storageAccountAccessKey,
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
+	})).(*Backend)
+
+	b2 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
+		"storage_account_name": res.storageAccountName,
+		"container_name":       res.storageContainerName,
+		"key":                  res.storageKeyName,
+		"access_key":           res.storageAccountAccessKey,
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
+	})).(*Backend)
+
+	s1, err := b1.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s2, err := b2.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remote.TestRemoteLocks(t, s1.(*remote.State).Client, s2.(*remote.State).Client)
+}
+
+func TestRemoteClientServicePrincipalLocks(t *testing.T) {
+	testAccAzureBackend(t)
+	rs := acctest.RandString(4)
+	res := testResourceNames(rs, "testState")
+	armClient := buildTestClient(t, res)
+
+	ctx := context.TODO()
+	err := armClient.buildTestResources(ctx, &res)
+	defer armClient.destroyTestResources(ctx, res)
+	if err != nil {
+		t.Fatalf("Error creating Test Resources: %q", err)
+	}
+
+	b1 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
 		"storage_account_name": res.storageAccountName,
 		"container_name":       res.storageContainerName,
 		"key":                  res.storageKeyName,
@@ -178,13 +215,36 @@ func TestBackendServicePrincipalCustomEndpoint(t *testing.T) {
 		"client_id":           os.Getenv("ARM_CLIENT_ID"),
 		"client_secret":       os.Getenv("ARM_CLIENT_SECRET"),
 		"environment":         os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":            endpoint,
+		"endpoint":            os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
-	backend.TestBackendStates(t, b)
+	b2 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
+		"storage_account_name": res.storageAccountName,
+		"container_name":       res.storageContainerName,
+		"key":                  res.storageKeyName,
+		"resource_group_name": res.resourceGroup,
+		"subscription_id":     os.Getenv("ARM_SUBSCRIPTION_ID"),
+		"tenant_id":           os.Getenv("ARM_TENANT_ID"),
+		"client_id":           os.Getenv("ARM_CLIENT_ID"),
+		"client_secret":       os.Getenv("ARM_CLIENT_SECRET"),
+		"environment":         os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":            os.Getenv("ARM_ENDPOINT"),
+	})).(*Backend)
+
+	s1, err := b1.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s2, err := b2.StateMgr(backend.DefaultStateName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	remote.TestRemoteLocks(t, s1.(*remote.State).Client, s2.(*remote.State).Client)
 }
 
-func TestBackendAccessKeyLocked(t *testing.T) {
+func TestPutMaintainsMetaData(t *testing.T) {
 	testAccAzureBackend(t)
 	rs := acctest.RandString(4)
 	res := testResourceNames(rs, "testState")
@@ -197,67 +257,53 @@ func TestBackendAccessKeyLocked(t *testing.T) {
 		t.Fatalf("Error creating Test Resources: %q", err)
 	}
 
-	b1 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
-		"storage_account_name": res.storageAccountName,
-		"container_name":       res.storageContainerName,
-		"key":                  res.storageKeyName,
-		"access_key":           res.storageAccountAccessKey,
-		"environment":          os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":             os.Getenv("ARM_ENDPOINT"),
-	})).(*Backend)
+	headerName := "acceptancetest"
+	expectedValue := "f3b56bad-33ad-4b93-a600-7a66e9cbd1eb"
 
-	b2 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
-		"storage_account_name": res.storageAccountName,
-		"container_name":       res.storageContainerName,
-		"key":                  res.storageKeyName,
-		"access_key":           res.storageAccountAccessKey,
-		"environment":          os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":             os.Getenv("ARM_ENDPOINT"),
-	})).(*Backend)
-
-	backend.TestBackendStateLocks(t, b1, b2)
-	backend.TestBackendStateForceUnlock(t, b1, b2)
-}
-
-func TestBackendServicePrincipalLocked(t *testing.T) {
-	testAccAzureBackend(t)
-	rs := acctest.RandString(4)
-	res := testResourceNames(rs, "testState")
-	armClient := buildTestClient(t, res)
-
-	ctx := context.TODO()
-	err := armClient.buildTestResources(ctx, &res)
-	defer armClient.destroyTestResources(ctx, res)
+	client, err := armClient.getBlobClient(ctx)
 	if err != nil {
-		t.Fatalf("Error creating Test Resources: %q", err)
+		t.Fatalf("Error building Blob Client: %+v", err)
+	}
+	containerReference := client.GetContainerReference(res.storageContainerName)
+	blobReference := containerReference.GetBlobReference(res.storageKeyName)
+
+	err = blobReference.CreateBlockBlob(&storage.PutBlobOptions{})
+	if err != nil {
+		t.Fatalf("Error Creating Block Blob: %+v", err)
 	}
 
-	b1 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
-		"storage_account_name": res.storageAccountName,
-		"container_name":       res.storageContainerName,
-		"key":                  res.storageKeyName,
-		"access_key":           res.storageAccountAccessKey,
-		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
-		"client_id":            os.Getenv("ARM_CLIENT_ID"),
-		"client_secret":        os.Getenv("ARM_CLIENT_SECRET"),
-		"environment":          os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":             os.Getenv("ARM_ENDPOINT"),
-	})).(*Backend)
+	err = blobReference.GetMetadata(&storage.GetBlobMetadataOptions{})
+	if err != nil {
+		t.Fatalf("Error loading MetaData: %+v", err)
+	}
 
-	b2 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
-		"storage_account_name": res.storageAccountName,
-		"container_name":       res.storageContainerName,
-		"key":                  res.storageKeyName,
-		"access_key":           res.storageAccountAccessKey,
-		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
-		"client_id":            os.Getenv("ARM_CLIENT_ID"),
-		"client_secret":        os.Getenv("ARM_CLIENT_SECRET"),
-		"environment":          os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":             os.Getenv("ARM_ENDPOINT"),
-	})).(*Backend)
+	blobReference.Metadata[headerName] = expectedValue
+	err = blobReference.SetMetadata(&storage.SetBlobMetadataOptions{})
+	if err != nil {
+		t.Fatalf("Error setting MetaData: %+v", err)
+	}
 
-	backend.TestBackendStateLocks(t, b1, b2)
-	backend.TestBackendStateForceUnlock(t, b1, b2)
+	// update the metadata using the Backend
+	remoteClient := RemoteClient{
+		keyName:       res.storageKeyName,
+		containerName: res.storageContainerName,
+
+		blobClient: *client,
+	}
+
+	bytes := []byte(acctest.RandString(20))
+	err = remoteClient.Put(bytes)
+	if err != nil {
+		t.Fatalf("Error putting data: %+v", err)
+	}
+
+	// Verify it still exists
+	err = blobReference.GetMetadata(&storage.GetBlobMetadataOptions{})
+	if err != nil {
+		t.Fatalf("Error loading MetaData: %+v", err)
+	}
+
+	if blobReference.Metadata[headerName] != expectedValue {
+		t.Fatalf("%q was not set to %q in the MetaData: %+v", headerName, expectedValue, blobReference.Metadata)
+	}
 }

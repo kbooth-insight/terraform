@@ -3,10 +3,9 @@ package azure_vault
 import (
 	"context"
 	"fmt"
-	"sort"
+	//"sort"
 	"strings"
-
-	"github.com/Azure/azure-sdk-for-go/storage"
+	//"github.com/Azure/azure-sdk-for-go/services/keyvault/mgmt/2016-10-01/keyvault"
 	"github.com/hashicorp/terraform/backend"
 	"github.com/hashicorp/terraform/state"
 	"github.com/hashicorp/terraform/state/remote"
@@ -20,42 +19,43 @@ const (
 )
 
 func (b *Backend) Workspaces() ([]string, error) {
-	prefix := b.keyName + keyEnvPrefix
-	params := storage.ListBlobsParameters{
-		Prefix: prefix,
-	}
+	prefix := b.keyvaultPrefix
+	//params := storage.ListBlobsParameters{
+	//	Prefix: prefix,
+	//}
+	//testClient := keyvault.NewVaultsClientWithBaseURI("", "")
 
-	ctx := context.TODO()
-	client, err := b.armClient.getBlobClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	container := client.GetContainerReference(b.containerName)
-	resp, err := container.ListBlobs(params)
-	if err != nil {
-		return nil, err
-	}
+	fmt.Println(prefix)
 
-	envs := map[string]struct{}{}
-	for _, obj := range resp.Blobs {
-		key := obj.Name
-		if strings.HasPrefix(key, prefix) {
-			name := strings.TrimPrefix(key, prefix)
-			// we store the state in a key, not a directory
-			if strings.Contains(name, "/") {
-				continue
-			}
+	//client := b.armClient.vaultsClient
 
-			envs[name] = struct{}{}
-		}
-	}
+	//ctx := context.TODO()
+	//client, err := b.armClient.getVaultClient(ctx)
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	result := []string{backend.DefaultStateName}
-	for name := range envs {
-		result = append(result, name)
-	}
-	sort.Strings(result[1:])
-	return result, nil
+	//envs := map[string]struct{}{}
+	//for _, obj := range resp.Blobs {
+	//	key := obj.Name
+	//	if strings.HasPrefix(key, prefix) {
+	//		name := strings.TrimPrefix(key, prefix)
+	//		// we store the state in a key, not a directory
+	//		if strings.Contains(name, "/") {
+	//			continue
+	//		}
+	//
+	//		envs[name] = struct{}{}
+	//	}
+	//}
+	//
+	//result := []string{backend.DefaultStateName}
+	//for name := range envs {
+	//	result = append(result, name)
+	//}
+	//sort.Strings(result[1:])
+	workspaces := []string{prefix}
+	return workspaces, nil
 }
 
 func (b *Backend) DeleteWorkspace(name string) error {
@@ -63,30 +63,30 @@ func (b *Backend) DeleteWorkspace(name string) error {
 		return fmt.Errorf("can't delete default state")
 	}
 
-	ctx := context.TODO()
-	client, err := b.armClient.getBlobClient(ctx)
-	if err != nil {
-		return err
-	}
+	//ctx := context.TODO()
+	//client, err := b.armClient.getVaultClient(ctx)
+	//if err != nil {
+	//	return err
+	//}
 
-	containerReference := client.GetContainerReference(b.containerName)
-	blobReference := containerReference.GetBlobReference(b.path(name))
-	options := &storage.DeleteBlobOptions{}
+	//containerReference := client.GetContainerReference(b.containerName)
+	//blobReference := containerReference.GetBlobReference(b.path(name))
+	//options := &storage.DeleteBlobOptions{}
 
-	return blobReference.Delete(options)
+	return nil //blobReference.Delete(options)
 }
 
 func (b *Backend) StateMgr(name string) (state.State, error) {
 	ctx := context.TODO()
-	blobClient, err := b.armClient.getBlobClient(ctx)
-	if err != nil {
-		return nil, err
-	}
+
+	fmt.Println(ctx)
 
 	client := &RemoteClient{
-		blobClient:    *blobClient,
-		containerName: b.containerName,
-		keyName:       b.path(name),
+		vaultClient:    b.armClient.vaultsClient,
+		secretsClient:  b.armClient.secretsClient,
+		keyvaultName:   b.keyvaultName,
+		keyvaultPrefix: b.keyvaultPrefix,
+		keyName:        b.keyvaultPrefix,
 	}
 
 	stateMgr := &remote.State{Client: client}

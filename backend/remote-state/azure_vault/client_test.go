@@ -63,12 +63,12 @@ func TestRemoteClientManagedServiceIdentityBasic(t *testing.T) {
 		"storage_account_name": res.storageAccountName,
 		"container_name":       res.storageContainerName,
 		"key":                  res.storageKeyName,
-		"resource_group_name": res.resourceGroup,
-		"use_msi":             true,
-		"subscription_id":     os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":           os.Getenv("ARM_TENANT_ID"),
-		"environment":         os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":            os.Getenv("ARM_ENDPOINT"),
+		"resource_group_name":  res.resourceGroup,
+		"use_msi":              true,
+		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
+		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
 	state, err := b.StateMgr(backend.DefaultStateName)
@@ -131,13 +131,13 @@ func TestRemoteClientServicePrincipalBasic(t *testing.T) {
 		"storage_account_name": res.storageAccountName,
 		"container_name":       res.storageContainerName,
 		"key":                  res.storageKeyName,
-		"resource_group_name": res.resourceGroup,
-		"subscription_id":     os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":           os.Getenv("ARM_TENANT_ID"),
-		"client_id":           os.Getenv("ARM_CLIENT_ID"),
-		"client_secret":       os.Getenv("ARM_CLIENT_SECRET"),
-		"environment":         os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":            os.Getenv("ARM_ENDPOINT"),
+		"resource_group_name":  res.resourceGroup,
+		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
+		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
+		"client_id":            os.Getenv("ARM_CLIENT_ID"),
+		"client_secret":        os.Getenv("ARM_CLIENT_SECRET"),
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
 	state, err := b.StateMgr(backend.DefaultStateName)
@@ -209,26 +209,26 @@ func TestRemoteClientServicePrincipalLocks(t *testing.T) {
 		"storage_account_name": res.storageAccountName,
 		"container_name":       res.storageContainerName,
 		"key":                  res.storageKeyName,
-		"resource_group_name": res.resourceGroup,
-		"subscription_id":     os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":           os.Getenv("ARM_TENANT_ID"),
-		"client_id":           os.Getenv("ARM_CLIENT_ID"),
-		"client_secret":       os.Getenv("ARM_CLIENT_SECRET"),
-		"environment":         os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":            os.Getenv("ARM_ENDPOINT"),
+		"resource_group_name":  res.resourceGroup,
+		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
+		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
+		"client_id":            os.Getenv("ARM_CLIENT_ID"),
+		"client_secret":        os.Getenv("ARM_CLIENT_SECRET"),
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
 	b2 := backend.TestBackendConfig(t, New(), backend.TestWrapConfig(map[string]interface{}{
 		"storage_account_name": res.storageAccountName,
 		"container_name":       res.storageContainerName,
 		"key":                  res.storageKeyName,
-		"resource_group_name": res.resourceGroup,
-		"subscription_id":     os.Getenv("ARM_SUBSCRIPTION_ID"),
-		"tenant_id":           os.Getenv("ARM_TENANT_ID"),
-		"client_id":           os.Getenv("ARM_CLIENT_ID"),
-		"client_secret":       os.Getenv("ARM_CLIENT_SECRET"),
-		"environment":         os.Getenv("ARM_ENVIRONMENT"),
-		"endpoint":            os.Getenv("ARM_ENDPOINT"),
+		"resource_group_name":  res.resourceGroup,
+		"subscription_id":      os.Getenv("ARM_SUBSCRIPTION_ID"),
+		"tenant_id":            os.Getenv("ARM_TENANT_ID"),
+		"client_id":            os.Getenv("ARM_CLIENT_ID"),
+		"client_secret":        os.Getenv("ARM_CLIENT_SECRET"),
+		"environment":          os.Getenv("ARM_ENVIRONMENT"),
+		"endpoint":             os.Getenv("ARM_ENDPOINT"),
 	})).(*Backend)
 
 	s1, err := b1.StateMgr(backend.DefaultStateName)
@@ -260,7 +260,7 @@ func TestPutMaintainsMetaData(t *testing.T) {
 	headerName := "acceptancetest"
 	expectedValue := "f3b56bad-33ad-4b93-a600-7a66e9cbd1eb"
 
-	client, err := armClient.getBlobClient(ctx)
+	client, err := armClient.getVaultClient(ctx)
 	if err != nil {
 		t.Fatalf("Error building Blob Client: %+v", err)
 	}

@@ -3,15 +3,12 @@ package azure_vault
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/profiles/latest/keyvault/mgmt/keyvault"
+	keyvaultSecrets "github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault"
 	"log"
-	"net/url"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/resources"
-	"github.com/Azure/azure-sdk-for-go/services/keyvault/2016-10-01/keyvault"
-	"github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -20,25 +17,25 @@ import (
 )
 
 type ArmClient struct {
-	// These Clients are only initialized if an Access Key isn't provided
-	groupsClient      *resources.GroupsClient
-	vaultsClient      *keyvault.BaseClient
+	vaultsClient      keyvault.VaultsClient
+	secretsClient     *keyvaultSecrets.BaseClient
 	environment       azure.Environment
 	resourceGroupName string
 	vaultName         string
+	subscriptionId    string
 }
 
-func buildArmClient(config BackendConfig) (*ArmClient, error) {
+func buildArmClient(ctx context.Context, config BackendConfig) (*ArmClient, error) {
 	env, err := buildArmEnvironment(config)
 	if err != nil {
 		return nil, err
 	}
 
 	client := ArmClient{
-		environment:        *env,
-		resourceGroupName:  config.ResourceGroupName,
-		vaultName: config.VaultName,
-
+		environment:       *env,
+		resourceGroupName: config.ResourceGroupName,
+		vaultName:         config.keyvaultName,
+		subscriptionId:    config.SubscriptionID,
 	}
 
 	builder := authentication.Builder{
@@ -50,8 +47,8 @@ func buildArmClient(config BackendConfig) (*ArmClient, error) {
 		Environment:                   config.Environment,
 
 		// Feature Toggles
-		SupportsAzureCliToken:          true,
-		SupportsClientSecretAuth:       true,
+		SupportsAzureCliToken:    true,
+		SupportsClientSecretAuth: true,
 		// TODO: support for Client Certificate auth
 	}
 	armConfig, err := builder.Build()
@@ -71,9 +68,25 @@ func buildArmClient(config BackendConfig) (*ArmClient, error) {
 
 	//TODO: implement vault client
 
-	groupsClient := resources.NewGroupsClientWithBaseURI(env.ResourceManagerEndpoint, armConfig.SubscriptionID)
-	client.configureClient(&groupsClient.Client, auth)
-	client.groupsClient = &groupsClient
+	vaultsClient := keyvault.NewVaultsClient(armConfig.SubscriptionID)
+	client.configureVaultsClient(&vaultsClient.Client, auth)
+	client.vaultsClient = vaultsClient
+
+	vault, err := client.vaultsClient.Get(ctx, config.ResourceGroupName, config.keyvaultName)
+	if err != nil {
+		fmt.Println("Error fetching vault: %q", config.keyvaultName)
+	}
+
+	fmt.Printf("%s vault found", *vault.Name)
+	secretClient := keyvaultSecrets.New()
+	client.configureVaultsClient(&secretClient.Client, auth)
+	maxResults := int32(1024)
+	keyList, err := secretClient.GetSecrets(ctx, config.keyvaultName, &maxResults)
+	for key := range keyList.Values() {
+		fmt.Printf("Secret: %s", key)
+	}
+
+	client.secretsClient = &secretClient
 
 	return &client, nil
 }
@@ -88,33 +101,18 @@ func buildArmEnvironment(config BackendConfig) (*azure.Environment, error) {
 	return authentication.DetermineEnvironment(config.Environment)
 }
 
-func (c ArmClient) getBlobClient(ctx context.Context) (*keyvault.BaseClient, error) {
-
-
-	log.Printf("[DEBUG] Building the Blob Client from an Access Token (using user credentials)")
-//TODO LIST VAULT KEYS
-//	if keys.Keys == nil {
-//		return nil, fmt.Errorf("Nil key returned for storage account %q", c.storageAccountName)
-//	}
-
-	client =: keyvault.BaseClient()
-	//accessKeys := *keys.Keys
-	//accessKey := accessKeys[0].Value
-
-	//storageClient, err := storage.NewBasicClientOnSovereignCloud(c.storageAccountName, *accessKey, c.environment)
-	//if err != nil {
-	//	return nil, fmt.Errorf("Error creating storage client for storage account %q: %s", c.storageAccountName, err)
-	//}
-	//client := storageClient.GetBlobService()
-	return &client, nil
-}
-
 func (c *ArmClient) configureClient(client *autorest.Client, auth autorest.Authorizer) {
 	client.UserAgent = buildUserAgent()
 	client.Authorizer = auth
 	client.Sender = buildSender()
 	client.SkipResourceProviderRegistration = false
 	client.PollingDuration = 60 * time.Minute
+}
+
+func (c *ArmClient) configureVaultsClient(client *autorest.Client, auth autorest.Authorizer) {
+	client.Authorizer = auth
+	client.SkipResourceProviderRegistration = false
+	client.Sender = buildSender()
 }
 
 func buildUserAgent() string {

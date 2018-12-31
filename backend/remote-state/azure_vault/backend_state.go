@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	//"sort"
-	"strings"
+	//"strings"
 	//"github.com/Azure/azure-sdk-for-go/services/keyvault/mgmt/2016-10-01/keyvault"
 	"github.com/hashicorp/terraform/backend"
 	"github.com/hashicorp/terraform/state"
@@ -95,43 +95,43 @@ func (b *Backend) StateMgr(name string) (state.State, error) {
 	//it's listed by States.
 	if name != backend.DefaultStateName {
 		// take a lock on this state while we write it
-		lockInfo := state.NewLockInfo()
-		lockInfo.Operation = "init"
-		lockId, err := client.Lock(lockInfo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to lock azure state: %s", err)
-		}
+		//lockInfo := state.NewLockInfo()
+		//lockInfo.Operation = "init"
+		//lockId, err := client.Lock(lockInfo)
+		//if err != nil {
+		//	return nil, fmt.Errorf("failed to lock azure state: %s", err)
+		//}
 
 		// Local helper function so we can call it multiple places
-		lockUnlock := func(parent error) error {
-			if err := stateMgr.Unlock(lockId); err != nil {
-				return fmt.Errorf(strings.TrimSpace(errStateUnlock), lockId, err)
-			}
-			return parent
-		}
+		//lockUnlock := func(parent error) error {
+		//	if err := stateMgr.Unlock(lockId); err != nil {
+		//		return fmt.Errorf(strings.TrimSpace(errStateUnlock), lockId, err)
+		//	}
+		//	return parent
+		//}
 
 		// Grab the value
-		if err := stateMgr.RefreshState(); err != nil {
-			err = lockUnlock(err)
-			return nil, err
-		}
+		//if err := stateMgr.RefreshState(); err != nil {
+		//	err = lockUnlock(err)
+		//	return nil, err
+		//}
 
 		// If we have no state, we have to create an empty state
 		if v := stateMgr.State(); v == nil {
 			if err := stateMgr.WriteState(states.NewState()); err != nil {
-				err = lockUnlock(err)
+				//err = lockUnlock(err)
 				return nil, err
 			}
 			if err := stateMgr.PersistState(); err != nil {
-				err = lockUnlock(err)
+				//err = lockUnlock(err)
 				return nil, err
 			}
 		}
 
 		// Unlock, the state should now be initialized
-		if err := lockUnlock(nil); err != nil {
-			return nil, err
-		}
+		//if err := lockUnlock(nil); err != nil {
+		//	return nil, err
+		//}
 
 	}
 

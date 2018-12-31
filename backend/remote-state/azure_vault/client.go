@@ -30,7 +30,7 @@ type RemoteClient struct {
 	keyvaultPrefix string
 
 	leaseID       string
-	secretsClient *keyvaultClient.BaseClient
+	secretsClient keyvaultClient.BaseClient
 	keyName       string
 }
 

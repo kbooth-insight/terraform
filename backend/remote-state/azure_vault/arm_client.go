@@ -18,7 +18,7 @@ import (
 
 type ArmClient struct {
 	vaultsClient      keyvault.VaultsClient
-	secretsClient     *keyvaultSecrets.BaseClient
+	secretsClient     keyvaultSecrets.BaseClient
 	environment       azure.Environment
 	resourceGroupName string
 	vaultName         string
@@ -66,27 +66,31 @@ func buildArmClient(ctx context.Context, config BackendConfig) (*ArmClient, erro
 		return nil, err
 	}
 
-	//TODO: implement vault client
-
 	vaultsClient := keyvault.NewVaultsClient(armConfig.SubscriptionID)
+
 	client.configureVaultsClient(&vaultsClient.Client, auth)
 	client.vaultsClient = vaultsClient
 
 	vault, err := client.vaultsClient.Get(ctx, config.ResourceGroupName, config.keyvaultName)
 	if err != nil {
-		fmt.Println("Error fetching vault: %q", config.keyvaultName)
+		return nil, err
 	}
 
-	fmt.Printf("%s vault found", *vault.Name)
+	fmt.Printf("%s vault found\n", *vault.Name)
+
+
 	secretClient := keyvaultSecrets.New()
 	client.configureVaultsClient(&secretClient.Client, auth)
-	maxResults := int32(1024)
-	keyList, err := secretClient.GetSecrets(ctx, config.keyvaultName, &maxResults)
-	for key := range keyList.Values() {
-		fmt.Printf("Secret: %s", key)
+	client.secretsClient = secretClient
+	//maxResults := int32(25)
+	fmt.Printf(*vault.Properties.VaultURI)
+	t := context.TODO()
+	key, err := secretClient.GetSecret(t, *vault.Properties.VaultURI, config.keyvaultPrefix, "")
+	if err != nil  {
+		return nil, fmt.Errorf("Error fetching secret %s ", config.keyvaultPrefix)
 	}
 
-	client.secretsClient = &secretClient
+	fmt.Println(key)
 
 	return &client, nil
 }
@@ -110,9 +114,11 @@ func (c *ArmClient) configureClient(client *autorest.Client, auth autorest.Autho
 }
 
 func (c *ArmClient) configureVaultsClient(client *autorest.Client, auth autorest.Authorizer) {
+	client.UserAgent = buildUserAgent()
 	client.Authorizer = auth
-	client.SkipResourceProviderRegistration = false
 	client.Sender = buildSender()
+	client.SkipResourceProviderRegistration = false
+	client.PollingDuration = 60 * time.Minute
 }
 
 func buildUserAgent() string {
